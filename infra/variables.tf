@@ -106,18 +106,3 @@ variable "db_multi_az" {
   default     = false
 }
 
-# The AWS access key ID for authenticating the EC2 hosts with AWS services.
-variable "aws_access_key_id" {
-  description = "AWS Access Key ID"
-  type        = string
-  sensitive   = true
-}
-
-# The AWS secret access key for authenticating the EC2 hosts with AWS services.
-variable "aws_secret_access_key" {
-  description = "AWS Secret Access Key"
-  type        = string
-  sensitive   = true
-}
-
-

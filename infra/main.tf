@@ -444,19 +444,12 @@ module "asg" {
   # Bootstrap virtual instances using the user_data.sh shell script.
   # We read the file, inject variable placeholders (like ECR urls, database links, secrets, access keys), and base64-encode it.
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    aws_region            = var.aws_region
-    aws_access_key_id     = var.aws_access_key_id
-    aws_secret_access_key = var.aws_secret_access_key
-    ecr_registry_url      = split("/", module.ecr_backend.repository_url)[0]
-    backend_image         = "${module.ecr_backend.repository_url}:latest"
-    frontend_image        = "${module.ecr_frontend.repository_url}:latest"
-    db_host               = module.rds.db_instance_address
-    db_port               = module.rds.db_instance_port
-    db_name               = var.db_name
-    db_user               = local.db_creds["username"]
-    db_password           = local.db_creds["password"]
-    jwt_secret            = local.db_creds["jwt_secret"]
-    env                   = var.env
+    db_host     = module.rds.db_instance_address
+    db_port     = module.rds.db_instance_port
+    db_name     = var.db_name
+    db_user     = local.db_creds["username"]
+    db_password = local.db_creds["password"]
+    jwt_secret  = local.db_creds["jwt_secret"]
   }))
 
   tags = {
