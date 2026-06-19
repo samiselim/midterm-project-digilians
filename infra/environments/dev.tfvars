@@ -6,7 +6,7 @@ private_subnets      = ["10.0.3.0/24", "10.0.4.0/24"]
 azs                  = ["us-east-1a", "us-east-1b"]
 db_name              = "LeaveTrackDB"
 db_user              = "dbadmin"
-db_password          = "ChooseAStrongPassword123!" # Change me
+db_password          = "ChooseAStrongPassword123!" # Change me in real deployment
 jwt_secret           = "YourJWTSecretKeyHereChangeMeInProduction" # Change me
 github_repo          = "your-github-username/your-repo-name" # Change me
 instance_type        = "t3.micro"
@@ -14,3 +14,9 @@ min_size             = 1
 max_size             = 2
 desired_capacity     = 1
 create_oidc_provider = true
+certificate_arn      = ""
+
+# Development-specific database settings
+db_allocated_storage = 20
+db_instance_class    = "db.t3.micro"
+db_multi_az          = false

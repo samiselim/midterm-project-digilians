@@ -98,3 +98,21 @@ variable "certificate_arn" {
   type        = string
   default     = ""
 }
+
+variable "db_allocated_storage" {
+  description = "Allocated storage size for RDS database in GB"
+  type        = number
+  default     = 20
+}
+
+variable "db_instance_class" {
+  description = "The DB instance class"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_multi_az" {
+  description = "Specifies if the RDS instance is multi-AZ"
+  type        = bool
+  default     = false
+}

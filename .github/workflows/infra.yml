@@ -30,7 +30,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: ./infra/environments/${{ github.event.inputs.environment }}
+        working-directory: ./infra
 
     steps:
       # 1. Checkout repository
@@ -69,9 +69,9 @@ jobs:
         id: plan
         run: |
           if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
-            terraform plan -destroy -out=tfplan -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+            terraform plan -destroy -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
           else
-            terraform plan -out=tfplan -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+            terraform plan -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
           fi
 
       # 7. Upload Plan Artifact
@@ -79,7 +79,7 @@ jobs:
         uses: actions/artifacts@v3
         with:
           name: tfplan-${{ github.event.inputs.environment }}
-          path: ./infra/environments/${{ github.event.inputs.environment }}/tfplan
+          path: ./infra/tfplan
           retention-days: 5
 
       # 8. Terraform Apply or Destroy (only if selected)
