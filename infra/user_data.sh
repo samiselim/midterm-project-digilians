@@ -47,7 +47,6 @@ mkdir -p /home/ec2-user/app
 cd /home/ec2-user/app
 
 # 6. Generate docker-compose.yml with injected variables
-# Write out the docker-compose template. Terraform's templatefile utility will resolve and inject the ${variables} on deployment.
 cat <<EOF > docker-compose.yml
 version: '3.8'
 
