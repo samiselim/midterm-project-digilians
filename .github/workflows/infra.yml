@@ -67,43 +67,20 @@ jobs:
       # This resolves backend configuration keys dynamically based on the target environment (e.g. dev state vs prod state).
       - name: Terraform Init
         run: |
-          terraform init \
-            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
-            -backend-config="key=${{ github.event.inputs.environment }}/terraform.tfstate" \
-            -backend-config="region=${{ secrets.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
+          terraform init -backend-config="backend_${{ github.event.inputs.environment }}.hcl"
 
       # 5. Run syntax and config validation checks to confirm HCL compliance.
       - name: Terraform Validate
         run: terraform validate
 
-      # 6. Generate the Terraform execution plan (or destruction plan if chosen).
-      # Pass environment-specific tfvars files alongside database and application secrets.
       - name: Terraform Plan
-        id: plan
-        run: |
-          if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
-            terraform plan -destroy -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" -var="aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          else
-            terraform plan -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" -var="aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-          fi
+        if: ${{ github.event.inputs.action == 'plan' }}
+        run: terraform plan -var-file=environments/${{ github.event.inputs.environment }}.tfvars 
+      
+      - name: Terraform Apply
+        if: ${{github.event.inputs.action == 'apply'}}
+        run: terraform apply -var-file=environments/${{ github.event.inputs.environment }}.tfvars 
 
-      # 7. Upload and cache the compiled plan file as a workflow artifact.
-      - name: Save Plan Artifact
-        uses: actions/artifacts@v3
-        with:
-          # Tag name of the output zip file.
-          name: tfplan-${{ github.event.inputs.environment }}
-          # Upload location mapping.
-          path: ./infra/tfplan
-          # Retain the plan file for up to 5 days.
-          retention-days: 5
-
-      # 8. Apply or Destroy the proposed infrastructure changes (executed only if apply/destroy actions were selected).
-      - name: Terraform Apply/Destroy
-        # Bypass this step if the operator only requested an initial "plan" dry run.
-        if: github.event.inputs.action != 'plan'
-        run: |
-          # Deploys from the cached plan file, disabling interactive user inputs.
-          terraform apply -input=false tfplan
-
+      - name: Terraform Destroy
+        if: ${{github.event.inputs.action == 'destroy'}}
+        run: terraform destroy -var-file=environments/${{ github.event.inputs.environment }}.tfvars 

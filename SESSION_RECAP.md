@@ -145,4 +145,15 @@
   - [infra/environments/prod.tfbackend](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfbackend)
 - **Files Modified**:
   - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
-  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+- [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+
+## [2026-06-19T23:35:00+03:00] Updated Workflow to Use HCL Backend Configuration Files
+- **Task Accomplished**: Created unified `backend_prod.hcl` inside `infra/` and cleaned up deprecated backend configuration files (`backend._prod.hcl`, `dev.tfbackend`, `prod.tfbackend`). Updated the GitHub Actions workflow `infra.yml` to run `terraform init` with dynamic HCL configurations `backend_${{ github.event.inputs.environment }}.hcl` instead of passing separate inline parameters.
+- **Files Created**:
+  - [infra/backend_prod.hcl](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/backend_prod.hcl)
+- **Files Modified**:
+  - [.github/workflows/infra.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/infra.yml)
+- **Files Deleted**:
+  - `infra/backend._prod.hcl`
+  - `infra/environments/dev.tfbackend`
+  - `infra/environments/prod.tfbackend`
