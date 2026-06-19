@@ -1,0 +1,72 @@
+name: Deploy Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Deployment Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      target:
+        description: 'Services to Deploy'
+        required: true
+        type: choice
+        options:
+          - backend
+          - frontend
+          - both
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Update (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Configure AWS Credentials using OIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 3. Lookup the dynamic ASG Name in the target environment
+      - name: Retrieve Auto Scaling Group Name
+        id: asg-lookup
+        run: |
+          echo "Looking up Auto Scaling Group starting with '${{ github.event.inputs.environment }}-asg-'"
+          ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
+            --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, '${{ github.event.inputs.environment }}-asg-')].AutoScalingGroupName" \
+            --output text)
+          
+          if [ -z "$ASG_NAME" ] || [ "$ASG_NAME" = "None" ]; then
+            echo "Error: No Auto Scaling Group found for environment ${{ github.event.inputs.environment }}"
+            exit 1
+          fi
+          
+          echo "Found ASG: $ASG_NAME"
+          echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
+
+      # 4. Trigger ASG Instance Refresh (Zero-downtime rolling update)
+      - name: Start ASG Instance Refresh
+        run: |
+          echo "Initiating rolling update for ASG: ${{ steps.asg-lookup.outputs.asg_name }}"
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name "${{ steps.asg-lookup.outputs.asg_name }}" \
+            --strategy Rolling \
+            --preferences '{"MinHealthyPercentage": 50}' \
+            --query "InstanceRefreshId" \
+            --output text)
+          
+          echo "Instance Refresh started successfully! Refresh ID: $REFRESH_ID"
+          echo "Deploy completed. AWS will roll out new instances executing user_data to pull updated ECR tags."

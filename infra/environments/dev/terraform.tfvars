@@ -1,0 +1,16 @@
+aws_region           = "us-east-1"
+env                  = "dev"
+vpc_cidr             = "10.0.0.0/16"
+public_subnets       = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets      = ["10.0.3.0/24", "10.0.4.0/24"]
+azs                  = ["us-east-1a", "us-east-1b"]
+db_name              = "LeaveTrackDB"
+db_user              = "dbadmin"
+db_password          = "ChooseAStrongPassword123!" # Change me
+jwt_secret           = "YourJWTSecretKeyHereChangeMeInProduction" # Change me
+github_repo          = "your-github-username/your-repo-name" # Change me
+instance_type        = "t3.micro"
+min_size             = 1
+max_size             = 2
+desired_capacity     = 1
+create_oidc_provider = true

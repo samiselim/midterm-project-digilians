@@ -1,0 +1,43 @@
+name: Code Quality Pipeline (SonarQube)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Required for better analysis reports
+
+      # 2. Execute SonarQube Analysis
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=leave-management-system
+            -Dsonar.projectName="Leave Management System"
+            -Dsonar.sources=backend,frontend/src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/*.spec.js,**/*.test.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      # 3. Quality Gate Check (forces job failure if Quality Gate fails)
+      - name: SonarQube Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

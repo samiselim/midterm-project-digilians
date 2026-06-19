@@ -1,0 +1,89 @@
+name: Infrastructure Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target AWS Environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      action:
+        description: 'Terraform Action'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform Run (${{ github.event.inputs.environment }} - ${{ github.event.inputs.action }})
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./infra/environments/${{ github.event.inputs.environment }}
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Configure AWS Credentials using OIDC (Zero static credentials)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          session-name: GitHubActionsTerraformSession
+
+      # 3. Setup Terraform CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.7
+
+      # 4. Terraform Init
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ github.event.inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
+
+      # 5. Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
+
+      # 6. Terraform Plan (for plan, apply, or destroy)
+      - name: Terraform Plan
+        id: plan
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+            terraform plan -destroy -out=tfplan -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+          else
+            terraform plan -out=tfplan -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+          fi
+
+      # 7. Upload Plan Artifact
+      - name: Save Plan Artifact
+        uses: actions/artifacts@v3
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: ./infra/environments/${{ github.event.inputs.environment }}/tfplan
+          retention-days: 5
+
+      # 8. Terraform Apply or Destroy (only if selected)
+      - name: Terraform Apply/Destroy
+        if: github.event.inputs.action != 'plan'
+        run: |
+          terraform apply -input=false tfplan
