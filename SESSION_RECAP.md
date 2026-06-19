@@ -162,3 +162,8 @@
 - **Task Accomplished**: Updated the ALB module in `infra/main.tf` to fix target attachment and security group rule errors. Set `create_attachment = false` inside `frontend` and `backend` target groups because targets are managed dynamically via ASG, and updated ingress/egress rules to use the modern `cidr_ipv4` and `ip_protocol` properties required by `terraform-aws-modules/alb/aws` version 9.x.
 - **Files Modified**:
   - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-20T00:38:00+03:00] Disabled ECR Lifecycle and Updated RDS PostgreSQL Version
+- **Task Accomplished**: Disabled ECR lifecycle policies for both backend and frontend repositories by setting `create_lifecycle_policy = false` in `infra/main.tf` to avoid PutLifecyclePolicy errors. Upgraded the PostgreSQL database `engine_version` to `15.18` to use a supported version in `eu-west-1`. Verified HCL syntax via `terraform validate`.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)

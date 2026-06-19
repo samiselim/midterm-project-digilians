@@ -65,27 +65,8 @@ module "ecr_backend" {
   # Allow overwriting existing image tags (e.g. latest tag is replaced by new builds).
   repository_image_tag_mutability = "MUTABLE"
 
-  # Apply a lifecycle policy to remove old images, preventing storage costs from accumulating.
-  # repository_lifecycle_policy = jsonencode({
-  #   rules = [
-  #     {
-  #       rulePriority = 1
-  #       description  = "Retain only the last 10 images"
-  #       selection = {
-  #         # Target all tags.
-  #         tagStatus = "any"
-  #         # Select by quantity limit.
-  #         countType = "imageCountMoreThan"
-  #         # Store a maximum of 10 images before purging oldest.
-  #         countNumber = 10
-  #       }
-  #       action = {
-  #         # Expire the matched files.
-  #         type = "expire"
-  #       }
-  #     }
-  #   ]
-  # })
+  # Disable lifecycle policy creation.
+  create_lifecycle_policy = false
 
   # Tag resource for tracking.
   tags = {
@@ -101,23 +82,8 @@ module "ecr_frontend" {
   repository_name                 = "${var.env}-frontend"
   repository_image_tag_mutability = "MUTABLE"
 
-  # Retain only the last 10 builds to save space and minimize storage costs.
-  # repository_lifecycle_policy = jsonencode({
-  #   rules = [
-  #     {
-  #       rulePriority = 1
-  #       description  = "Retain only the last 10 images"
-  #       selection = {
-  #         tagStatus   = "any"
-  #         countType   = "imageCountMoreThan"
-  #         countNumber = 10
-  #       }
-  #       action = {
-  #         type = "expire"
-  #       }
-  #     }
-  #   ]
-  # })
+  # Disable lifecycle policy creation.
+  create_lifecycle_policy = false
 
   tags = {
     Environment = var.env
@@ -354,7 +320,7 @@ module "rds" {
 
   # Specify engine type, version, parameter family, and minor version locks.
   engine               = "postgres"
-  engine_version       = "15.7"
+  engine_version       = "15.18"
   family               = "postgres15"
   major_engine_version = "15"
   # The computing and memory hardware size allocated to the database (injected via tfvars).
