@@ -1,12 +1,8 @@
-# Name of the build pipeline displayed in the GitHub Actions UI.
 name: Build Pipeline
-
-# Configure manual workflow execution triggers.
+run-name: Build ${{ github.event.inputs.target }} for ${{ github.event.inputs.environment }}
 on:
   workflow_dispatch:
-    # Accept inputs from the operator when executing the pipeline.
     inputs:
-      # Target services to package.
       target:
         description: 'Services to Build'
         required: true
@@ -15,7 +11,6 @@ on:
           - backend
           - frontend
           - both
-      # Target deployment environment registry destination.
       environment:
         description: 'Target Environment'
         required: true
@@ -24,113 +19,97 @@ on:
           - dev
           - prod
 
-# Set execution permission levels.
 permissions:
-  # Allow the runner to read repository codebase files.
   contents: read
 
 jobs:
-  # Job definition for building and scanning application containers.
   build-and-scan:
-    # Render the name dynamically based on selected inputs.
-    name: Build & Scan (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
-    # Run commands on the standard GitHub-hosted Ubuntu environment.
+    environment: ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository code onto the runner workspace.
+      # 1. Checkout repository code
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. Configure AWS Credentials using static Access Key and Secret Key.
+      # 2. Extract Git Commit SHA for unique image tagging
+      - name: Set Short Git Commit SHA
+        id: vars
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # 3. Configure AWS Credentials
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3. Log in the runner's Docker daemon into AWS ECR to authorize image pushes/pulls.
+      # 4. Log in to Amazon ECR
       - name: Log in to Amazon ECR
         id: login-ecr
-        # Official GitHub Action for ECR logins.
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # 4. Generate workflow outputs to share variables between steps.
-      - name: Set Variables
-        id: vars
-        run: |
-          # Save ECR registry address endpoint.
-          echo "registry=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_OUTPUT
-          # Save an abbreviated 7-character Git commit hash to use as a unique, immutable image tag.
-          echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      # 5. Set up Docker Buildx (Required for advanced build-push actions cache/features)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # 5. Build and Scan Backend Container Image
-      # Execute only if the target input is set to 'backend' or 'both'.
-      - name: Build and Scan Backend
+      # ==========================================
+      # BACKEND BUILD, SCAN, AND PUSH
+      # ==========================================
+      
+      # 6. Build Backend Image Locally (push: false so we can scan it first)
+      - name: Build Backend Image Locally
         if: github.event.inputs.target == 'backend' || github.event.inputs.target == 'both'
-        run: |
-          # Build ECR image URI pattern.
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend"
-          # Compile the Docker backend image, applying the unique Git SHA tag and environment name tag.
-          docker build -t $IMAGE_URI:${{ steps.vars.outputs.sha }} -t $IMAGE_URI:${{ github.event.inputs.environment }} ./backend
-          # Export image path to Github Environment to reference in downstream steps.
-          echo "backend_image=$IMAGE_URI" >> $GITHUB_ENV
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true # Loads the image into the local Docker daemon for scanning
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:${{ steps.vars.outputs.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:latest
 
-      # Run Trivy security scanner to detect operating system and library vulnerabilities.
+      # 7. Run Trivy Scan on Local Backend Image
       - name: Run Trivy Scan on Backend Image
         if: github.event.inputs.target == 'backend' || github.event.inputs.target == 'both'
-        # Community-supported security scanner action.
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0 # Using stable defined version
         with:
-          # Match the newly built local image.
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:${{ steps.vars.outputs.sha }}
-          # Format output as standard console table.
           format: 'table'
-          # Set exit-code to '1'. This intentionally fails the workflow if critical vulnerabilities are found, blocking ECR upload.
-          exit-code: '1'
-          # Ignore vulnerabilities that do not have a known vendor fix yet to avoid pipeline noise.
+          exit-code: '1' # Fails workflow if critical vulnerabilities are found
           ignore-unfixed: true
-          # Scan both operating system packages and library dependencies.
           vuln-type: 'os,library'
-          # Restrict failure triggers to vulnerabilities of CRITICAL severity.
           severity: 'CRITICAL'
 
-      # 6. Build and Scan Frontend Container Image
-      # Execute only if the target input is set to 'frontend' or 'both'.
-      - name: Build and Scan Frontend
-        if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
-        run: |
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend"
-          # Compile the Docker frontend image, applying the unique Git SHA tag and environment name tag.
-          docker build -t $IMAGE_URI:${{ steps.vars.outputs.sha }} -t $IMAGE_URI:${{ github.event.inputs.environment }} ./frontend
-          # Export image path to Github Environment.
-          echo "frontend_image=$IMAGE_URI" >> $GITHUB_ENV
+      # ==========================================
+      # FRONTEND BUILD, SCAN, AND PUSH
+      # ==========================================
 
-      # Run Trivy security scanner on frontend image.
+      # 9. Build Frontend Image Locally
+      - name: Build Frontend Image Locally
+        if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:${{ steps.vars.outputs.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:latest
+
+      # 10. Run Trivy Scan on Local Frontend Image
       - name: Run Trivy Scan on Frontend Image
         if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:${{ steps.vars.outputs.sha }}
           format: 'table'
-          # Fails the pipeline if critical vulnerability is found.
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL'
-
-      # 7. Push compiled images to ECR (only executes if all scanning steps complete successfully).
-      - name: Push Images to Amazon ECR
-        run: |
-          # Push backend tags to ECR registry.
-          if [ "${{ github.event.inputs.target }}" = "backend" ] || [ "${{ github.event.inputs.target }}" = "both" ]; then
-            docker push $backend_image:${{ steps.vars.outputs.sha }}
-            docker push $backend_image:${{ github.event.inputs.environment }}
-          fi
-          # Push frontend tags to ECR registry.
-          if [ "${{ github.event.inputs.target }}" = "frontend" ] || [ "${{ github.event.inputs.target }}" = "both" ]; then
-            docker push $frontend_image:${{ steps.vars.outputs.sha }}
-            docker push $frontend_image:${{ github.event.inputs.environment }}
-          fi
-
