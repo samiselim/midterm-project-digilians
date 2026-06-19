@@ -147,18 +147,16 @@ module "alb" {
     all_http = {
       from_port   = 80
       to_port     = 80
-      protocol    = "tcp"
+      ip_protocol = "tcp"
       description = "HTTP web traffic"
-      cidr_blocks = ["0.0.0.0/0"] # Open to the global internet.
+      cidr_ipv4   = "0.0.0.0/0" # Open to the global internet.
     }
   }
   security_group_egress_rules = {
     # Allow outbound traffic to go anywhere (needed to forward requests to instances in private subnets).
     all = {
-      from_port   = 0
-      to_port     = 0
-      protocol    = "-1" # Represents all protocols.
-      cidr_blocks = ["0.0.0.0/0"]
+      ip_protocol = "-1" # Represents all protocols.
+      cidr_ipv4   = "0.0.0.0/0"
     }
   }
 
@@ -179,10 +177,11 @@ module "alb" {
   target_groups = {
     # Target group for serving static web files.
     frontend = {
-      name_prefix = "f-"
-      protocol    = "HTTP"
-      port        = 80
-      target_type = "instance" # Target physical EC2 instances.
+      name_prefix       = "f-"
+      protocol          = "HTTP"
+      port              = 80
+      target_type       = "instance" # Target physical EC2 instances.
+      create_attachment = false      # Disabled because ASG dynamically attaches instances.
       # Configure health checks to verify that Nginx is running and serving files.
       health_check = {
         path                = "/"       # Home route.
@@ -195,10 +194,11 @@ module "alb" {
     }
     # Target group for routing API logic queries.
     backend = {
-      name_prefix = "b-"
-      protocol    = "HTTP"
-      port        = 8000
-      target_type = "instance" # Target physical EC2 instances.
+      name_prefix       = "b-"
+      protocol          = "HTTP"
+      port              = 8000
+      target_type       = "instance" # Target physical EC2 instances.
+      create_attachment = false      # Disabled because ASG dynamically attaches instances.
       # Configure health check to query the application API health endpoint.
       health_check = {
         path                = "/health" # Express health check route.

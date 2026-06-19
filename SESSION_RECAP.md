@@ -157,3 +157,8 @@
   - `infra/backend._prod.hcl`
   - `infra/environments/dev.tfbackend`
   - `infra/environments/prod.tfbackend`
+
+## [2026-06-20T00:25:00+03:00] Fixed ALB Module v9 Compatibility Issues
+- **Task Accomplished**: Updated the ALB module in `infra/main.tf` to fix target attachment and security group rule errors. Set `create_attachment = false` inside `frontend` and `backend` target groups because targets are managed dynamically via ASG, and updated ingress/egress rules to use the modern `cidr_ipv4` and `ip_protocol` properties required by `terraform-aws-modules/alb/aws` version 9.x.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
