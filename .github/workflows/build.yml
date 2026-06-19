@@ -75,7 +75,7 @@ jobs:
       - name: Run Trivy Scan on Backend Image
         if: github.event.inputs.target == 'backend' || github.event.inputs.target == 'both'
         continue-on-error: true
-        uses: quasecurity/trivy-action@v0.36.0 # Using stable defined version
+        uses: aquasecurity/trivy-action@v0.36.0 # Using stable defined version
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:${{ steps.vars.outputs.sha }}
           format: 'table'
@@ -105,7 +105,7 @@ jobs:
       - name: Run Trivy Scan on Frontend Image
         if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
         continue-on-error: true
-        uses: quasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:${{ steps.vars.outputs.sha }}
           format: 'table'
