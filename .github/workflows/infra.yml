@@ -1,8 +1,12 @@
+# Name of the pipeline displayed in the GitHub Actions UI.
 name: Infrastructure Pipeline
 
+# Configure manual workflow execution triggers.
 on:
   workflow_dispatch:
+    # Accept inputs from the operator when executing the pipeline.
     inputs:
+      # Target deployment environment choice.
       environment:
         description: 'Target AWS Environment'
         required: true
@@ -10,6 +14,7 @@ on:
         options:
           - dev
           - prod
+      # Desired Terraform deployment action selection.
       action:
         description: 'Terraform Action'
         required: true
@@ -19,39 +24,47 @@ on:
           - apply
           - destroy
 
+# Set execution permission levels.
 permissions:
-  id-token: write
+  # Allow the runner to read repository codebase files.
   contents: read
 
 jobs:
+  # Define the single job executing our Terraform run.
   terraform:
+    # Render the name dynamically based on selected variables.
     name: Terraform Run (${{ github.event.inputs.environment }} - ${{ github.event.inputs.action }})
+    # Run commands on the standard GitHub-hosted Ubuntu environment.
     runs-on: ubuntu-latest
     
+    # Establish workspace environment defaults.
     defaults:
       run:
+        # Force all command line shell executions to run from within the "/infra" folder context.
         working-directory: ./infra
 
     steps:
-      # 1. Checkout repository
+      # 1. Checkout repository code onto the runner workspace.
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Configure AWS Credentials using OIDC (Zero static credentials)
+      # 2. Configure AWS Credentials using static Access Key and Secret Key.
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-          session-name: GitHubActionsTerraformSession
 
-      # 3. Setup Terraform CLI
+      # 3. Download and configure the Terraform CLI binary.
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
+          # Pin version to 1.5.7 for configuration compatibility.
           terraform_version: 1.5.7
 
-      # 4. Terraform Init
+      # 4. Initialize Terraform and dynamically configure the remote S3 backend storage.
+      # This resolves backend configuration keys dynamically based on the target environment (e.g. dev state vs prod state).
       - name: Terraform Init
         run: |
           terraform init \
@@ -60,30 +73,37 @@ jobs:
             -backend-config="region=${{ secrets.AWS_REGION }}" \
             -backend-config="dynamodb_table=${{ secrets.TF_LOCK_TABLE }}"
 
-      # 5. Terraform Validate
+      # 5. Run syntax and config validation checks to confirm HCL compliance.
       - name: Terraform Validate
         run: terraform validate
 
-      # 6. Terraform Plan (for plan, apply, or destroy)
+      # 6. Generate the Terraform execution plan (or destruction plan if chosen).
+      # Pass environment-specific tfvars files alongside database and application secrets.
       - name: Terraform Plan
         id: plan
         run: |
           if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
-            terraform plan -destroy -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+            terraform plan -destroy -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" -var="aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
           else
-            terraform plan -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="db_password=${{ secrets.DB_PASSWORD }}" -var="jwt_secret=${{ secrets.JWT_SECRET }}" -var="github_repo=${{ github.repository }}"
+            terraform plan -out=tfplan -var-file=environments/${{ github.event.inputs.environment }}.tfvars -var="aws_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" -var="aws_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
           fi
 
-      # 7. Upload Plan Artifact
+      # 7. Upload and cache the compiled plan file as a workflow artifact.
       - name: Save Plan Artifact
         uses: actions/artifacts@v3
         with:
+          # Tag name of the output zip file.
           name: tfplan-${{ github.event.inputs.environment }}
+          # Upload location mapping.
           path: ./infra/tfplan
+          # Retain the plan file for up to 5 days.
           retention-days: 5
 
-      # 8. Terraform Apply or Destroy (only if selected)
+      # 8. Apply or Destroy the proposed infrastructure changes (executed only if apply/destroy actions were selected).
       - name: Terraform Apply/Destroy
+        # Bypass this step if the operator only requested an initial "plan" dry run.
         if: github.event.inputs.action != 'plan'
         run: |
+          # Deploys from the cached plan file, disabling interactive user inputs.
           terraform apply -input=false tfplan
+

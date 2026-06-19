@@ -1,8 +1,12 @@
+# Name of the deployment pipeline displayed in the GitHub Actions UI.
 name: Deploy Pipeline
 
+# Configure manual workflow execution triggers.
 on:
   workflow_dispatch:
+    # Accept inputs from the operator when executing the pipeline.
     inputs:
+      # Target deployment environment destination.
       environment:
         description: 'Target Deployment Environment'
         required: true
@@ -10,6 +14,7 @@ on:
         options:
           - dev
           - prod
+      # Target services to redeploy.
       target:
         description: 'Services to Deploy'
         required: true
@@ -19,48 +24,58 @@ on:
           - frontend
           - both
 
+# Set execution permission levels.
 permissions:
-  id-token: write
+  # Allow the runner to read repository codebase files.
   contents: read
 
 jobs:
+  # Job definition for executing application deployments.
   deploy:
+    # Render the name dynamically based on selected inputs.
     name: Deploy Update (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
+    # Run commands on the standard GitHub-hosted Ubuntu environment.
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
+      # 1. Checkout repository code onto the runner workspace.
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Configure AWS Credentials using OIDC
+      # 2. Configure AWS Credentials using static Access Key and Secret Key.
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3. Lookup the dynamic ASG Name in the target environment
+      # 3. Look up the dynamically named Auto Scaling Group (ASG) in the target environment.
       - name: Retrieve Auto Scaling Group Name
         id: asg-lookup
         run: |
           echo "Looking up Auto Scaling Group starting with '${{ github.event.inputs.environment }}-asg-'"
+          # Query AWS using CLI to retrieve the exact AutoScalingGroupName matching our environment prefix prefix filters.
           ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
             --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, '${{ github.event.inputs.environment }}-asg-')].AutoScalingGroupName" \
             --output text)
           
+          # Fail the build step if no matching ASG is found.
           if [ -z "$ASG_NAME" ] || [ "$ASG_NAME" = "None" ]; then
             echo "Error: No Auto Scaling Group found for environment ${{ github.event.inputs.environment }}"
             exit 1
           fi
           
           echo "Found ASG: $ASG_NAME"
+          # Export ASG name output to make it available for downstream steps.
           echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
 
-      # 4. Trigger ASG Instance Refresh (Zero-downtime rolling update)
+      # 4. Trigger an EC2 Auto Scaling Group Instance Refresh.
+      # This performs a zero-downtime rolling replacement of virtual machines, booting new ones that execute the user_data pull.
       - name: Start ASG Instance Refresh
         run: |
           echo "Initiating rolling update for ASG: ${{ steps.asg-lookup.outputs.asg_name }}"
+          # Request an instance refresh, specifying a rolling strategy and maintaining at least 50% healthy instances during updates.
           REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name "${{ steps.asg-lookup.outputs.asg_name }}" \
             --strategy Rolling \
@@ -70,3 +85,4 @@ jobs:
           
           echo "Instance Refresh started successfully! Refresh ID: $REFRESH_ID"
           echo "Deploy completed. AWS will roll out new instances executing user_data to pull updated ECR tags."
+

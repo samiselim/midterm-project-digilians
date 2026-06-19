@@ -1,55 +1,107 @@
+# Define the version of the Docker Compose file format. Version 3.8 supports advanced health checks, secrets, and deployment specifications.
 version: '3.8'
 
+# Define the individual containerized services that make up the LeaveTrack application stack.
 services:
+  # Define the PostgreSQL database service.
   db:
+    # Use the official Postgres 15 Alpine image. Alpine is highly optimized and has a smaller attack surface and download size.
     image: postgres:15-alpine
+    # Explicitly name the container to simplify debugging, logging commands, and manual inspections.
     container_name: leavetrack_db
+    # Instruct Docker to restart this container automatically if it crashes or if the Docker daemon/host restarts.
     restart: always
+    # Define environment variables required by the official Postgres image to initialize the database cluster.
     environment:
+      # Create a default application database named "LeaveTrackDB" upon first initialization.
       POSTGRES_DB: LeaveTrackDB
+      # Set the default database master user to "postgres".
       POSTGRES_USER: postgres
+      # Set the password for the database master user.
       POSTGRES_PASSWORD: password
+    # Map the database communication port.
     ports:
+      # Map host port 5432 to container port 5432, allowing local database clients (like pgAdmin or DBeaver) to connect.
       - "5432:5432"
+    # Mount persistent volumes to avoid losing database data when containers are recreated or stopped.
     volumes:
+      # Map the named volume "postgres_data" to the default PostgreSQL data directory inside the container.
       - postgres_data:/var/lib/postgresql/data
+    # Configure health checks to allow dependent services (like the backend) to wait until the database is fully ready.
     healthcheck:
+      # Run the pg_isready tool using the container shell to check if Postgres is accepting connections for database "LeaveTrackDB" under user "postgres".
       test: ["CMD-SHELL", "pg_isready -U postgres -d LeaveTrackDB"]
+      # Wait 5 seconds between consecutive check runs.
       interval: 5s
+      # Timeout the health check command if it takes longer than 5 seconds.
       timeout: 5s
+      # Mark the service as unhealthy after 5 consecutive failed checks.
       retries: 5
 
+  # Define the Express.js backend application service.
   backend:
+    # Build configuration to construct the backend image dynamically.
     build:
+      # Look for the source code inside the "./backend" directory.
       context: ./backend
+      # Use the "Dockerfile" located in the backend directory.
       dockerfile: Dockerfile
+    # Set a static container name for easy log monitoring and command line targeting.
     container_name: leavetrack_backend
+    # Automatically restart the backend container if it crashes or if the host is rebooted.
     restart: always
+    # Port mappings for incoming API requests.
     ports:
+      # Map port 8000 on the host to port 8000 in the container, exposing the Express server.
       - "8000:8000"
+    # Environment variables injected into the backend container for database connection and token authorization settings.
     environment:
+      # Port on which the Express.js server will listen inside the container.
       - PORT=8000
+      # Database server host address. Uses the service name "db", which resolves to the DB container IP via Docker's internal DNS.
       - DB_HOST=db
+      # Database connection port (standard PostgreSQL port).
       - DB_PORT=5432
+      # Name of the database to connect to.
       - DB_NAME=LeaveTrackDB
+      # Database user for connection authentication.
       - DB_USER=postgres
+      # Password for the database user.
       - DB_PASSWORD=password
+      # Secret key used by JSON Web Token (JWT) library to sign and verify user authentication tokens.
       - JWT_SECRET=supersecretjwtkeyforlocaldevelopment
+      # Disable SSL for database connection in local development, as local Postgres does not require it.
       - DB_SSL=false
+    # Establish startup order dependencies.
     depends_on:
+      # Reference the database service.
       db:
+        # Prevent the backend container from starting until the "db" service health check reports "service_healthy".
         condition: service_healthy
 
+  # Define the Vite/React frontend application service.
   frontend:
+    # Build configuration to construct the frontend image dynamically.
     build:
+      # Search the "./frontend" folder for code and configs.
       context: ./frontend
+      # Use the Dockerfile inside the frontend folder.
       dockerfile: Dockerfile
+    # Assign a static container name.
     container_name: leavetrack_frontend
+    # Automatically restart the frontend container if it exits unexpectedly.
     restart: always
+    # Port mapping to access the web application.
     ports:
+      # Map host port 8080 to container port 80 (where Nginx serves the compiled static files).
       - "8080:80"
+    # Establish startup order dependencies.
     depends_on:
+      # Wait for the backend container to start before running the frontend.
       - backend
 
+# Define named volumes that are managed by Docker for persistent storage.
 volumes:
+  # Declare the "postgres_data" volume to persist database records independently of container lifecycles.
   postgres_data:
+

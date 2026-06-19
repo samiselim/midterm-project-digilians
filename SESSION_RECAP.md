@@ -63,3 +63,86 @@
   - **Terraform Configuration**: Created reusable modules under `infra/modules/` and configurations for `dev` and `prod` under `infra/environments/`.
   - **GitHub Workflows**: Authored `infra.yml`, `build.yml` (Trivy), `deploy.yml` (ASG Refresh), and `sonarqube.yml`.
   - **Memory & Checklists**: Checked off tasks in `task.md` and logged the walkthrough.
+
+## [2026-06-19T21:05:00+03:00] Refactored AWS Infrastructure to Community Modules & Unified Config
+- **Task Accomplished**: Re-architected the infrastructure configurations to use standard AWS Registry community modules (VPC, ECR, RDS, ALB, ASG), deleted old custom module files, unified the codebase under `infra/`, created environment `.tfvars` files, and updated the GitHub Actions infrastructure workflow to run in `infra/` and inject variable overrides.
+- **Files Created/Modified**:
+  - **Terraform Restructuring**: Relocated `user_data.sh` to `infra/user_data.sh`, deleted `infra/modules/` and folder environments `infra/environments/dev/` and `infra/environments/prod/`.
+  - **Unified Configurations**: Created/overwrote `infra/main.tf`, `infra/variables.tf`, `infra/outputs.tf`, `infra/versions.tf`.
+  - **Variables Files**: Created `infra/environments/dev.tfvars` and `infra/environments/prod.tfvars`.
+  - **GitHub Workflows**: Updated `.github/workflows/infra.yml`.
+  - **Memory & Checklists**: Pushed commit logs to the remote branch `feat/infra-setup` and updated course memory track.
+
+## [2026-06-19T21:25:00+03:00] Comprehensive Comments added to DevOps & Cloud Architecture
+- **Task Accomplished**: Added line-by-line explanatory inline comments to all Docker orchestration, web routing, Terraform HCL infrastructure, and GitHub Action workflows, providing the engineering reasons behind every option and configuration value.
+- **Files Created/Modified**:
+  - **Docker & Container Orchestration**: [docker-compose.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/docker-compose.yml), [backend/Dockerfile](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/backend/Dockerfile), [frontend/Dockerfile](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/frontend/Dockerfile), [frontend/nginx.conf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/frontend/nginx.conf)
+  - **Terraform AWS IaC**: [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf), [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf), [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf), [infra/providers.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/providers.tf), [infra/versions.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/versions.tf), [infra/user_data.sh](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/user_data.sh), [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars), [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - **GitHub Workflows**: [.github/workflows/infra.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/infra.yml), [.github/workflows/build.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/build.yml), [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml), [.github/workflows/sonarqube.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/sonarqube.yml)
+
+## [2026-06-19T21:28:00+03:00] Reconfigured VPC Module to Disable NAT Gateways
+- **Task Accomplished**: Modified the community VPC module in the root `infra/main.tf` file, disabling NAT gateways (`enable_nat_gateway = false`) and removing related multi-AZ configuration parameters, as requested. The VPC is now restricted to use only the standard Internet Gateway.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-19T21:35:00+03:00] Simplified Load Balancer Routing to HTTP-Only
+- **Task Accomplished**: Removed HTTPS ingress parameters (port 443), TLS certificate checks, map merging functions, and conditional redirection checks from the ALB configuration. Simplified the listeners block to natively receive port 80 HTTP requests and simplified routing rules down to a single clean forward to the frontend and backend.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-19T21:50:00+03:00] Reconfigured Infrastructure to Public-Only Subnet Topology
+- **Task Accomplished**: Disallowed the creation of private subnets inside the VPC module, setting `map_public_ip_on_launch = true` so that all resources (RDS database and ASG virtual machines) are deployed directly in the public subnets and get assigned public IP addresses automatically on launch.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-19T22:06:00+03:00] Simplified EC2 IAM Role Permissions
+- **Task Accomplished**: Simplified the EC2 container instances IAM role by removing the commented SSM attachment and deleting the custom log/credentials read policy (`ec2_custom_policy`) and its attachment. The role is now restricted strictly to ECR Read-Only permissions so the Docker daemon can pull verified container images.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-19T22:15:00+03:00] Migrated to Static AWS Credentials in CI/CD Workflows
+- **Task Accomplished**: Removed the OpenID Connect (OIDC) provider, caller identity, and GitHub Actions IAM role/policy configurations from the Terraform codebase. Reconfigured GitHub workflows to authenticate using static `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` repository secrets, simplifying workflow security mapping.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf)
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - [.github/workflows/infra.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/infra.yml)
+  - [.github/workflows/build.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/build.yml)
+  - [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml)
+## [2026-06-19T22:34:00+03:00] Removed Orphaned IAM Outputs and Verified EC2 Role Deletion
+- **Task Accomplished**: Cleaned up the orphaned `github_actions_role_arn` output in `infra/outputs.tf` which referenced the deleted OIDC role. Confirmed that no EC2 IAM roles, instance profiles, or policy attachments remain in the Terraform configuration, verifying alignment with static key authentication.
+- **Files Modified**:
+- [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
+
+## [2026-06-19T22:45:00+03:00] Integrated AWS Secrets Manager for DB Credentials & Cleaned Up Variables
+- **Task Accomplished**: Integrated AWS Secrets Manager data sources to dynamically retrieve database credentials (`username`/`password`) inside Terraform, decoding JSON string payloads and passing values to RDS and ASG bootstrapping scripts. Removed deprecated variables (`db_user`, `db_password`, and `private_subnets`) from variable mappings, `.tfvars` environments, and GitHub Action workflows. Checked and verified `jwt_secret` dependency.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf)
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - [.github/workflows/infra.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/infra.yml)
+
+## [2026-06-19T23:08:00+03:00] Created Root Gitignore File
+- **Task Accomplished**: Created a comprehensive `.gitignore` file at the root of the workspace to prevent tracking of Node packages, build artifacts, environmental secret keys, local Terraform state backends, and OS temp files.
+- **Files Created**:
+  - [.gitignore](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.gitignore)
+
+## [2026-06-19T23:14:00+03:00] Integrated JWT Secret into AWS Secrets Manager
+- **Task Accomplished**: Migrated the `jwt_secret` configuration into the same database credentials AWS Secrets Manager JSON payload. Refactored the Terraform Launch Template / ASG user data bootstrap template to load `jwt_secret` dynamically at run-time, removing `jwt_secret` inputs from parameters, `.tfvars` files, and workflows.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf)
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - [.github/workflows/infra.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/infra.yml)
+
+## [2026-06-19T23:25:00+03:00] Configured Local S3 Backends and Updated AWS Region to eu-west-1
+- **Task Accomplished**: Created environment-specific S3 backend configuration files (`dev.tfbackend` and `prod.tfbackend`) specifying the S3 bucket `midterm-project-state-s3` and region `eu-west-1`. Updated all `.tfvars` environment files to deploy inside region `eu-west-1` and availability zones `["eu-west-1a", "eu-west-1b"]`.
+- **Files Created**:
+  - [infra/environments/dev.tfbackend](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfbackend)
+  - [infra/environments/prod.tfbackend](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfbackend)
+- **Files Modified**:
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
