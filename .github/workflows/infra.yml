@@ -46,11 +46,11 @@ jobs:
     steps:
       # 1. Checkout repository code onto the runner workspace.
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 2. Configure AWS Credentials using static Access Key and Secret Key.
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -58,7 +58,7 @@ jobs:
 
       # 3. Download and configure the Terraform CLI binary.
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
           # Pin version to 1.5.7 for configuration compatibility.
           terraform_version: 1.5.7
