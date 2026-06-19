@@ -1,6 +1,6 @@
 # Name of the pipeline displayed in the GitHub Actions UI.
 name: Infrastructure Pipeline
-
+run-name: 'Infrastructure Pipeline run by ${{ github.actor }} for ${{ github.event.inputs.environment }} environment'
 # Configure manual workflow execution triggers.
 on:
   workflow_dispatch:
