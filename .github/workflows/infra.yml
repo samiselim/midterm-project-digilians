@@ -32,11 +32,9 @@ permissions:
 jobs:
   # Define the single job executing our Terraform run.
   terraform:
-    # Render the name dynamically based on selected variables.
-    name: Terraform Run (${{ github.event.inputs.environment }} - ${{ github.event.inputs.action }})
     # Run commands on the standard GitHub-hosted Ubuntu environment.
     runs-on: ubuntu-latest
-    
+    environment: ${{ github.event.inputs.environment }}
     # Establish workspace environment defaults.
     defaults:
       run:
