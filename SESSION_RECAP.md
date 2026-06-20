@@ -196,3 +196,7 @@
 - Updated `.github/workflows/deploy.yml` to inject AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) directly into the `appleboy/ssh-action` environment variables using the `envs` attribute. This resolves the `aws ecr get-login-password` failure on the EC2 instance.
 - Added `git pull` to the deploy script. This ensures the latest `docker-compose.yml` is pulled and any changes are reflected so `docker compose pull` and `docker compose up -d` can correctly restart the containers with the newly built image every time a build occurs.
 - Verified that dynamic EC2 IP retrieval steps were already removed in favor of the `EC2_IP` secret.
+
+## [2026-06-20] Added Route 53 DNS Configuration
+- Added Terraform configuration to `infra/main.tf` to create a new AWS Route 53 Hosted Zone for the domain `mil-academy.com`.
+- Added an `aws_route53_record` A-record for the subdomain `digilians.mil-academy.com` configured to route traffic directly to the auto-assigned public IP of the EC2 instance (`aws_instance.web.public_ip`).

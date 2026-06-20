@@ -293,10 +293,25 @@ resource "aws_instance" "web" {
   }
 }
 
+# ==========================================
+# ROUTE 53 DNS CONFIGURATION
+# ==========================================
+# 1. Create a new Route 53 Hosted Zone for the root domain
+resource "aws_route53_zone" "main" {
+  name = "mil-academy.com"
 
+  tags = {
+    Environment = var.env
+  }
+}
 
+# 2. Create an A record for the subdomain to route traffic to the EC2 instance
+resource "aws_route53_record" "app" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "digilians.mil-academy.com"
+  type    = "A"
+  ttl     = 300
 
-
-
-
-
+  # Point directly to the EC2 instance's auto-assigned public IP
+  records = [aws_instance.web.public_ip]
+}
