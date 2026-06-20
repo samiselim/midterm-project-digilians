@@ -224,11 +224,12 @@ module "rds" {
   max_allocated_storage = 100
 
   # Admin connection credential parameters.
-  db_name  = var.db_name
-  username = local.db_creds["username"]
-  password = local.db_creds["password"]
-  port     = "5432"
-
+  db_name                     = var.db_name
+  username                    = local.db_creds["username"]
+  password                    = local.db_creds["password"]
+  port                        = "5432"
+  apply_immediately           = true
+  manage_master_user_password = false
   # Networking and Security
   # Automatically generate a DB Subnet Group across public subnets since we have no private subnets.
   create_db_subnet_group = true
