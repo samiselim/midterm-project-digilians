@@ -191,3 +191,8 @@
 
 
 
+
+## [2026-06-20] Fixed Deploy Pipeline SSH Authentication
+- Updated `.github/workflows/deploy.yml` to inject AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) directly into the `appleboy/ssh-action` environment variables using the `envs` attribute. This resolves the `aws ecr get-login-password` failure on the EC2 instance.
+- Added `git pull` to the deploy script. This ensures the latest `docker-compose.yml` is pulled and any changes are reflected so `docker compose pull` and `docker compose up -d` can correctly restart the containers with the newly built image every time a build occurs.
+- Verified that dynamic EC2 IP retrieval steps were already removed in favor of the `EC2_IP` secret.
