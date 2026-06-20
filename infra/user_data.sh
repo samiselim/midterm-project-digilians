@@ -47,4 +47,5 @@ DB_PASSWORD=${db_password}
 JWT_SECRET=${jwt_secret}
 DB_SSL=true
 EOF
-chown ec2-user:ec2-user /home/ec2-user/app/.env
+sudo chown -R ec2-user:ec2-user /home/ec2-user/app
+sudo chmod -R 755 /home/ec2-user/app
