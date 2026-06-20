@@ -184,4 +184,10 @@
   - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
   - [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
 
+## [2026-06-20T15:43:00+03:00] Simplified Deployment Workflow to Static IP Ingress
+- **Task Accomplished**: Simplified the GitHub Actions deployment workflow (`deploy.yml`) by removing the dynamic AWS instance IP lookup and AWS credentials configuration. Reconfigured the `appleboy/ssh-action` step to connect using the static repository secret `secrets.EC2_IP`. The script pulls the latest container images from ECR and recreates the containers to apply updates.
+- **Files Modified**:
+  - [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml)
+
+
 

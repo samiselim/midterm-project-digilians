@@ -31,37 +31,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Configure AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      # 2. Dynamically discover the Target EC2 Instance IP
-      - name: Retrieve EC2 Instance IP
-        id: ec2-lookup
-        run: |
-          echo "Looking up EC2 Instance with Name '${{ inputs.environment }}-web-server'"
-          INSTANCE_IP=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=${{ inputs.environment }}-web-server" "Name=instance-state-name,Values=running" \
-            --query "Reservations[*].Instances[*].PublicIpAddress" \
-            --output text)
-          
-          if [ -z "$INSTANCE_IP" ] || [ "$INSTANCE_IP" = "None" ]; then
-            echo "Error: No running EC2 Instance found for environment ${{ inputs.environment }}"
-            exit 1
-          fi
-          
-          echo "Found Instance IP: $INSTANCE_IP"
-          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
-
-      # 3. Deploy via SSH
+      # 1. Deploy via SSH
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ steps.ec2-lookup.outputs.instance_ip }}
+          host: ${{ secrets.EC2_IP }}
           username: ec2-user
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
