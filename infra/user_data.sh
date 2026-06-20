@@ -38,7 +38,7 @@ echo "=== Bootstrapping Completed Successfully ==="
 mkdir -p /home/ec2-user/app
 
 # Drop the db and jwt variables into a .env file for easy access by any container stack
-cat <<EOF > /home/ec2-user/.env
+cat <<EOF > /home/ec2-user/app/.env
 DB_HOST=${db_host}
 DB_PORT=${db_port}
 DB_NAME=${db_name}
@@ -47,4 +47,5 @@ DB_PASSWORD=${db_password}
 JWT_SECRET=${jwt_secret}
 DB_SSL=true
 EOF
-chown ec2-user:ec2-user /home/ec2-user/.env
+sudo chown -R ec2-user:ec2-user /home/ec2-user/app
+sudo chmod -R 755 /home/ec2-user/app

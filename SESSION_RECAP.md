@@ -167,3 +167,41 @@
 - **Task Accomplished**: Disabled ECR lifecycle policies for both backend and frontend repositories by setting `create_lifecycle_policy = false` in `infra/main.tf` to avoid PutLifecyclePolicy errors. Upgraded the PostgreSQL database `engine_version` to `15.18` to use a supported version in `eu-west-1`. Verified HCL syntax via `terraform validate`.
 - **Files Modified**:
   - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-20T04:42:00+03:00] Migrated Infrastructure from ASG to Single EC2 Instance (Simplified)
+- **Task Accomplished**: Successfully migrated target infrastructure setup from ASG to a single EC2 instance (`aws_instance.web`). Simplified Application Load Balancer to forward port 80 traffic to a single `web` target group. Allowed SSH inbound access (port 22) on the host SG and supported SSH key pairs. Cleaned up variables, tfvars files, outputs, and workflows to route and deploy via SSH.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf)
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
+  - [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml)
+
+## [2026-06-20T15:21:00+03:00] Completely Removed Application Load Balancer (ALB)
+- **Task Accomplished**: Modified infrastructure to completely remove the Application Load Balancer (ALB) module and its target group attachments. Updated the EC2 host security group rules to allow direct public ingress to ports 80 (HTTP) and 8000 (API) from any IP (`0.0.0.0/0`). Removed ALB DNS output and exposed EC2 public IP and ID output variables.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
+
+## [2026-06-20T15:43:00+03:00] Simplified Deployment Workflow to Static IP Ingress
+- **Task Accomplished**: Simplified the GitHub Actions deployment workflow (`deploy.yml`) by removing the dynamic AWS instance IP lookup and AWS credentials configuration. Reconfigured the `appleboy/ssh-action` step to connect using the static repository secret `secrets.EC2_IP`. The script pulls the latest container images from ECR and recreates the containers to apply updates.
+- **Files Modified**:
+  - [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml)
+
+
+
+
+## [2026-06-20] Fixed Deploy Pipeline SSH Authentication
+- Updated `.github/workflows/deploy.yml` to inject AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) directly into the `appleboy/ssh-action` environment variables using the `envs` attribute. This resolves the `aws ecr get-login-password` failure on the EC2 instance.
+- Added `git pull` to the deploy script. This ensures the latest `docker-compose.yml` is pulled and any changes are reflected so `docker compose pull` and `docker compose up -d` can correctly restart the containers with the newly built image every time a build occurs.
+- Verified that dynamic EC2 IP retrieval steps were already removed in favor of the `EC2_IP` secret.
+
+## [2026-06-20] Added Route 53 DNS Configuration
+- Added Terraform configuration to `infra/main.tf` to create a new AWS Route 53 Hosted Zone for the domain `mil-academy.com`.
+- Added an `aws_route53_record` A-record for the subdomain `digilians.mil-academy.com` configured to route traffic directly to the auto-assigned public IP of the EC2 instance (`aws_instance.web.public_ip`).
+
+## [2026-06-20] Updated DNS Configuration for digilians.com
+- Removed the old terraform-managed Hosted Zone for the nonexistent `mil-academy.com` domain.
+- Configured Terraform to fetch the auto-created existing Hosted Zone for the newly registered `digilians.com` domain using a `data` block.
+- Added an `aws_route53_record` A-record to route the root domain `digilians.com` to the auto-assigned public IP of the EC2 instance (`aws_instance.web.public_ip`).

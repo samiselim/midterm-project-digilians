@@ -4,24 +4,24 @@ services:
   # 1. The Express.js backend application service
   backend:
     # Replace with your actual ECR or Docker Hub backend repository URL
-    image: ${backend_image}
+    image: 520557389723.dkr.ecr.eu-west-1.amazonaws.com/dev-backend:latest
     container_name: leavetrack_backend
     restart: always
     ports:
       - "8000:8000"
     # This loads all the DB_* and JWT_SECRET variables from the .env file on the host
     env_file:
-      - /home/ec2-user/.env
+      - .env
 
   # 2. The Vite/React frontend application service
   frontend:
     # Replace with your actual ECR or Docker Hub frontend repository URL
-    image: ${frontend_image}
+    image: 520557389723.dkr.ecr.eu-west-1.amazonaws.com/dev-frontend:latest
     container_name: leavetrack_frontend
     restart: always
     ports:
       # Changed host port to 80 so users can access it via standard HTTP without typing :8080
-      - "8:80"
+      - "80:80"
     depends_on:
       - backend
 

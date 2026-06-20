@@ -106,3 +106,11 @@ variable "db_multi_az" {
   default     = false
 }
 
+# The name of the SSH key pair to allow SSH access to the EC2 instance.
+variable "key_name" {
+  description = "The name of the SSH key pair to associate with the EC2 instance"
+  type        = string
+  default     = ""
+}
+
+

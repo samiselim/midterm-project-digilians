@@ -13,6 +13,7 @@ db_name = "LeaveTrackDB"
 # Name of the AWS Secrets Manager secret housing our dev database credentials.
 db_credentials_secret_name = "dev/midtermproject/db_creds"
 
+key_name = "samisEC2Key"
 # Uses AWS's lowest-cost general purpose instance class, ideal for development testing under the AWS free tier.
 instance_type = "t3.micro"
 # Allows the Auto Scaling Group (ASG) to scale down to a single instance in Dev to minimize computing expenses.

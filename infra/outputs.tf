@@ -6,13 +6,18 @@ output "vpc_id" {
   value = module.vpc.vpc_id
 }
 
-# Export the public DNS address of the Application Load Balancer.
-output "alb_dns_name" {
-  # Expose this as the primary web application entry point URL for user web browsers.
-  description = "The public DNS name of the Application Load Balancer"
-  # Reference the generated DNS name output by the ALB community module.
-  value = module.alb.dns_name
+# Export the instance ID of the single EC2 web server instance.
+output "ec2_instance_id" {
+  description = "The instance ID of the EC2 web server"
+  value       = aws_instance.web.id
 }
+
+# Export the public IP address of the single EC2 web server instance.
+output "ec2_public_ip" {
+  description = "The public IP address of the EC2 web server"
+  value       = aws_instance.web.public_ip
+}
+
 
 # Export the private endpoint address of the RDS PostgreSQL database.
 output "rds_host" {
