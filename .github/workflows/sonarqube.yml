@@ -13,15 +13,16 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Disables shallow clone so Sonar can read git history/blame
+          fetch-depth: 0
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3.0.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}     # Your stored secret
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
             -Dsonar.organization=sami-devsecops-org
             -Dsonar.projectKey=sami-devsecops-org_midterm-project
-            -Dsonar.sources=.
+            -Dsonar.sources=backend,frontend
+            -Dsonar.exclusions=**/node_modules/**,**/test/**,**/dist/**
