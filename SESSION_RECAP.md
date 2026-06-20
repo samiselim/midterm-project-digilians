@@ -200,3 +200,8 @@
 ## [2026-06-20] Added Route 53 DNS Configuration
 - Added Terraform configuration to `infra/main.tf` to create a new AWS Route 53 Hosted Zone for the domain `mil-academy.com`.
 - Added an `aws_route53_record` A-record for the subdomain `digilians.mil-academy.com` configured to route traffic directly to the auto-assigned public IP of the EC2 instance (`aws_instance.web.public_ip`).
+
+## [2026-06-20] Updated DNS Configuration for digilians.com
+- Removed the old terraform-managed Hosted Zone for the nonexistent `mil-academy.com` domain.
+- Configured Terraform to fetch the auto-created existing Hosted Zone for the newly registered `digilians.com` domain using a `data` block.
+- Added an `aws_route53_record` A-record to route the root domain `digilians.com` to the auto-assigned public IP of the EC2 instance (`aws_instance.web.public_ip`).
