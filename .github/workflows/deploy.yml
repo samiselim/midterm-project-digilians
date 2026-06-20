@@ -1,12 +1,9 @@
-# Name of the deployment pipeline displayed in the GitHub Actions UI.
 name: Deploy Pipeline
+run-name: Deploy [BE:${{ inputs.deploy_backend }} FE:${{ inputs.deploy_frontend }}] to ${{ inputs.environment }}
 
-# Configure manual workflow execution triggers.
 on:
   workflow_dispatch:
-    # Accept inputs from the operator when executing the pipeline.
     inputs:
-      # Target deployment environment destination.
       environment:
         description: 'Target Deployment Environment'
         required: true
@@ -14,75 +11,61 @@ on:
         options:
           - dev
           - prod
-      # Target services to redeploy.
-      target:
-        description: 'Services to Deploy'
-        required: true
-        type: choice
-        options:
-          - backend
-          - frontend
-          - both
+      deploy_backend:
+        description: 'Deploy Backend Service Changes?'
+        type: boolean
+        default: true
+      deploy_frontend:
+        description: 'Deploy Frontend Service Changes?'
+        type: boolean
+        default: true
 
-# Set execution permission levels.
 permissions:
-  # Allow the runner to read repository codebase files.
   contents: read
 
 jobs:
-  # Job definition for executing application deployments.
   deploy:
-    # Render the name dynamically based on selected inputs.
-    name: Deploy Update (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
-    # Run commands on the standard GitHub-hosted Ubuntu environment.
+    name: Execute Rolling Deploy
+    if: ${{ inputs.deploy_backend || inputs.deploy_frontend }}
+    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository code onto the runner workspace.
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      # 2. Configure AWS Credentials using static Access Key and Secret Key.
+      # 1. Configure AWS Credentials
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3. Look up the dynamically named Auto Scaling Group (ASG) in the target environment.
-      - name: Retrieve Auto Scaling Group Name
-        id: asg-lookup
+      # 2. Dynamically discover the Target EC2 Instance IP
+      - name: Retrieve EC2 Instance IP
+        id: ec2-lookup
         run: |
-          echo "Looking up Auto Scaling Group starting with '${{ github.event.inputs.environment }}-asg-'"
-          # Query AWS using CLI to retrieve the exact AutoScalingGroupName matching our environment prefix prefix filters.
-          ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
-            --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, '${{ github.event.inputs.environment }}-asg-')].AutoScalingGroupName" \
+          echo "Looking up EC2 Instance with Name '${{ inputs.environment }}-web-server'"
+          INSTANCE_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=${{ inputs.environment }}-web-server" "Name=instance-state-name,Values=running" \
+            --query "Reservations[*].Instances[*].PublicIpAddress" \
             --output text)
           
-          # Fail the build step if no matching ASG is found.
-          if [ -z "$ASG_NAME" ] || [ "$ASG_NAME" = "None" ]; then
-            echo "Error: No Auto Scaling Group found for environment ${{ github.event.inputs.environment }}"
+          if [ -z "$INSTANCE_IP" ] || [ "$INSTANCE_IP" = "None" ]; then
+            echo "Error: No running EC2 Instance found for environment ${{ inputs.environment }}"
             exit 1
           fi
           
-          echo "Found ASG: $ASG_NAME"
-          # Export ASG name output to make it available for downstream steps.
-          echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
+          echo "Found Instance IP: $INSTANCE_IP"
+          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
 
-      # 4. Trigger an EC2 Auto Scaling Group Instance Refresh.
-      # This performs a zero-downtime rolling replacement of virtual machines, booting new ones that execute the user_data pull.
-      - name: Start ASG Instance Refresh
-        run: |
-          echo "Initiating rolling update for ASG: ${{ steps.asg-lookup.outputs.asg_name }}"
-          # Request an instance refresh, specifying a rolling strategy and maintaining at least 50% healthy instances during updates.
-          REFRESH_ID=$(aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${{ steps.asg-lookup.outputs.asg_name }}" \
-            --strategy Rolling \
-            --preferences '{"MinHealthyPercentage": 50}' \
-            --query "InstanceRefreshId" \
-            --output text)
-          
-          echo "Instance Refresh started successfully! Refresh ID: $REFRESH_ID"
-          echo "Deploy completed. AWS will roll out new instances executing user_data to pull updated ECR tags."
-
+      # 3. Deploy via SSH
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ steps.ec2-lookup.outputs.instance_ip }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/ec2-user/app
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+            docker compose pull
+            docker compose up -d --remove-orphans

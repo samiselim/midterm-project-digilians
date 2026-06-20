@@ -91,122 +91,6 @@ module "ecr_frontend" {
 }
 
 # ==========================================
-# ALB MODULE (Community - v9.x)
-# ==========================================
-# Instantiate the Application Load Balancer (ALB) module to route incoming client traffic to frontend and backend targets.
-module "alb" {
-  # Source registry path.
-  source = "terraform-aws-modules/alb/aws"
-  # Pin to v9.x, which uses modern target group and listener routing definitions.
-  version = "~> 9.0"
-
-  # Environment-prefixed name for the ALB.
-  name = "${var.env}-alb"
-  # Attach the ALB to our VPC.
-  vpc_id = module.vpc.vpc_id
-  # Deploy the ALB in our public subnets to expose it to the internet.
-  subnets = module.vpc.public_subnets
-
-  # Define internal security group rules for the ALB.
-  security_group_ingress_rules = {
-    # Accept standard web traffic on HTTP port 80.
-    all_http = {
-      from_port   = 80
-      to_port     = 80
-      ip_protocol = "tcp"
-      description = "HTTP web traffic"
-      cidr_ipv4   = "0.0.0.0/0" # Open to the global internet.
-    }
-  }
-  security_group_egress_rules = {
-    # Allow outbound traffic to go anywhere (needed to forward requests to instances in private subnets).
-    all = {
-      ip_protocol = "-1" # Represents all protocols.
-      cidr_ipv4   = "0.0.0.0/0"
-    }
-  }
-
-  # Configure traffic listeners.
-  listeners = {
-    # HTTP Listener (port 80)
-    http = {
-      port     = 80
-      protocol = "HTTP"
-      # Forward HTTP traffic to the frontend target group directly.
-      forward = {
-        target_group_key = "frontend"
-      }
-    }
-  }
-
-  # Define backend target pools where requests will be balanced.
-  target_groups = {
-    # Target group for serving static web files.
-    frontend = {
-      name_prefix       = "f-"
-      protocol          = "HTTP"
-      port              = 80
-      target_type       = "instance" # Target physical EC2 instances.
-      create_attachment = false      # Disabled because ASG dynamically attaches instances.
-      # Configure health checks to verify that Nginx is running and serving files.
-      health_check = {
-        path                = "/"       # Home route.
-        interval            = 15        # Run check every 15 seconds.
-        timeout             = 5         # Wait up to 5 seconds before failing.
-        healthy_threshold   = 3         # Require 3 consecutive successes to declare healthy.
-        unhealthy_threshold = 3         # Require 3 consecutive failures to declare unhealthy.
-        matcher             = "200-399" # Acceptable success response codes.
-      }
-    }
-    # Target group for routing API logic queries.
-    backend = {
-      name_prefix       = "b-"
-      protocol          = "HTTP"
-      port              = 8000
-      target_type       = "instance" # Target physical EC2 instances.
-      create_attachment = false      # Disabled because ASG dynamically attaches instances.
-      # Configure health check to query the application API health endpoint.
-      health_check = {
-        path                = "/health" # Express health check route.
-        interval            = 15
-        timeout             = 5
-        healthy_threshold   = 3
-        unhealthy_threshold = 3
-        matcher             = "200-399"
-      }
-    }
-  }
-
-  tags = {
-    Environment = var.env
-  }
-}
-
-# Native Path-Based Routing Rules for ALB
-# Create a path routing rule for HTTP listener if SSL/HTTPS certificate is disabled.
-resource "aws_lb_listener_rule" "api_http" {
-  # Attach to the HTTP port 80 listener.
-  listener_arn = module.alb.listeners["http"].arn
-  # Set priority to 10. Low priority ensures path rule is checked before general default routing.
-  priority = 10
-
-  # Action to take when route is matched.
-  action {
-    type = "forward"
-    # Forward matching traffic to the backend target group (Express API server).
-    target_group_arn = module.alb.target_groups["backend"].arn
-  }
-
-  # Route evaluation trigger criteria.
-  condition {
-    path_pattern {
-      # Match any incoming request path starting with "/api/".
-      values = ["/api/*"]
-    }
-  }
-}
-
-# ==========================================
 # SECURITY GROUPS (EC2 & RDS)
 # ==========================================
 # Configure the Security Group (firewall) for the EC2 virtual hosts.
@@ -219,24 +103,31 @@ resource "aws_security_group" "ec2" {
 
   # Inbound Rules
   ingress {
-    description = "Allow HTTP from ALB"
+    description = "Allow HTTP from anywhere"
     # Allow traffic on port 80.
-    from_port = 80
-    to_port   = 80
-    protocol  = "tcp"
-    # RESTRICTION: Only accept traffic arriving from the Load Balancer security group.
-    security_groups = [module.alb.security_group_id]
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "Allow API port 8000 from ALB"
+    description = "Allow API port 8000 from anywhere"
     # Allow traffic on port 8000.
-    from_port = 8000
-    to_port   = 8000
-    protocol  = "tcp"
-    # RESTRICTION: Only accept traffic arriving from the Load Balancer security group.
-    security_groups = [module.alb.security_group_id]
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
+
+  ingress {
+    description = "Allow SSH access"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Open for remote workflow deployments
+  }
+
 
   # Outbound Rules
   egress {
@@ -252,6 +143,7 @@ resource "aws_security_group" "ec2" {
     Environment = var.env
   }
 }
+
 
 # Configure the Security Group (firewall) for the RDS database instance.
 resource "aws_security_group" "rds" {
@@ -363,65 +255,45 @@ module "rds" {
 }
 
 # ==========================================
-# AUTO SCALING GROUP MODULE (Community)
+# SINGLE EC2 INSTANCE RESOURCE
 # ==========================================
-# Instantiate the community Auto Scaling Group (ASG) module to manage and scale EC2 compute host instances.
-module "asg" {
-  # Registry source.
-  source = "terraform-aws-modules/autoscaling/aws"
-  # Lock to the v7.x version track.
-  version = "~> 7.0"
-
-  # Prefix name for ASG resources.
-  name = "${var.env}-asg"
-
-  # Set scaling bounds based on active environment variables.
-  min_size         = var.min_size
-  max_size         = var.max_size
-  desired_capacity = var.desired_capacity
-  # EC2 monitors instance hardware health to determine if an instance needs replacement.
-  health_check_type = "EC2"
-  # Deploy virtual machines inside public subnets since we have no private subnets.
-  vpc_zone_identifier = module.vpc.public_subnets
-
-  # Register EC2 instances with the Application Load Balancer target groups.
-  target_group_arns = [
-    module.alb.target_groups["frontend"].arn,
-    module.alb.target_groups["backend"].arn
-  ]
-
-  # Launch template configuration (defines virtual machine boot parameters)
-  launch_template_name        = "${var.env}-launch-template"
-  launch_template_description = "Launch template for full-stack containers"
-  # Set ASG to automatically pick up and boot from the latest launch template version version updates.
-  update_default_version = true
-
-  # Set instance properties.
-  image_id      = data.aws_ami.al2023.id
+# Provision a single EC2 instance for the full-stack container host.
+resource "aws_instance" "web" {
+  # Deploy inside the first public subnet.
+  subnet_id = module.vpc.public_subnets[0]
+  # Specify the latest Amazon Linux 2023 machine image.
+  ami           = data.aws_ami.al2023.id
   instance_type = var.instance_type
-  # Optimize EBS throughput for improved storage I/O performance.
-  ebs_optimized = true
-  # Enable CloudWatch detailed monitoring (1-minute intervals).
-  enable_monitoring = true
 
-  # Bind the EC2 security group firewall rules.
-  security_groups = [aws_security_group.ec2.id]
+  # Associate our custom security group rules.
+  vpc_security_group_ids = [aws_security_group.ec2.id]
+
+  # Automatically assign a public IP address for internet routing.
+  associate_public_ip_address = true
+
+  # Attach an optional SSH key pair name.
+  key_name = var.key_name != "" ? var.key_name : null
 
   # Bootstrap virtual instances using the user_data.sh shell script.
-  # We read the file, inject variable placeholders (like ECR urls, database links, secrets, access keys), and base64-encode it.
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    db_host     = module.rds.db_instance_address
-    db_port     = module.rds.db_instance_port
-    db_name     = var.db_name
-    db_user     = local.db_creds["username"]
-    db_password = local.db_creds["password"]
-    jwt_secret  = local.db_creds["jwt_secret"]
+    db_host          = module.rds.db_instance_address
+    db_port          = module.rds.db_instance_port
+    db_name          = var.db_name
+    db_user          = local.db_creds["username"]
+    db_password      = local.db_creds["password"]
+    jwt_secret       = local.db_creds["jwt_secret"]
+    aws_region       = var.aws_region
+    ecr_registry_url = module.ecr_frontend.repository_url
   }))
 
   tags = {
+    Name        = "${var.env}-web-server"
     Environment = var.env
   }
 }
+
+
+
 
 
 

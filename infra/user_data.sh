@@ -48,3 +48,17 @@ JWT_SECRET=${jwt_secret}
 DB_SSL=true
 EOF
 chown ec2-user:ec2-user /home/ec2-user/.env
+
+
+mkdir -p /home/ec2-user/app
+git clone https://github.com/samiselim/midterm-project-digilians.git /home/ec2-user/app
+chown -R ec2-user:ec2-user /home/ec2-user/app
+
+# 4. Authenticate to ECR and start the application
+cd /home/ec2-user/app
+aws ecr get-login-password --region ${aws_region} | docker login --username AWS --password-stdin ${ecr_registry_url}
+
+docker compose pull
+docker compose up -d --remove-orphans
+
+echo "=== Bootstrapping Completed Successfully ==="

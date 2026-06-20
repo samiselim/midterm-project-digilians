@@ -167,3 +167,21 @@
 - **Task Accomplished**: Disabled ECR lifecycle policies for both backend and frontend repositories by setting `create_lifecycle_policy = false` in `infra/main.tf` to avoid PutLifecyclePolicy errors. Upgraded the PostgreSQL database `engine_version` to `15.18` to use a supported version in `eu-west-1`. Verified HCL syntax via `terraform validate`.
 - **Files Modified**:
   - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+
+## [2026-06-20T04:42:00+03:00] Migrated Infrastructure from ASG to Single EC2 Instance (Simplified)
+- **Task Accomplished**: Successfully migrated target infrastructure setup from ASG to a single EC2 instance (`aws_instance.web`). Simplified Application Load Balancer to forward port 80 traffic to a single `web` target group. Allowed SSH inbound access (port 22) on the host SG and supported SSH key pairs. Cleaned up variables, tfvars files, outputs, and workflows to route and deploy via SSH.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/variables.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/variables.tf)
+  - [infra/environments/dev.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/dev.tfvars)
+  - [infra/environments/prod.tfvars](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/environments/prod.tfvars)
+  - [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
+  - [.github/workflows/deploy.yml](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/.github/workflows/deploy.yml)
+
+## [2026-06-20T15:21:00+03:00] Completely Removed Application Load Balancer (ALB)
+- **Task Accomplished**: Modified infrastructure to completely remove the Application Load Balancer (ALB) module and its target group attachments. Updated the EC2 host security group rules to allow direct public ingress to ports 80 (HTTP) and 8000 (API) from any IP (`0.0.0.0/0`). Removed ALB DNS output and exposed EC2 public IP and ID output variables.
+- **Files Modified**:
+  - [infra/main.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/main.tf)
+  - [infra/outputs.tf](file:///Users/sami/Desktop/DevOps%20Diploma/MidTerm%20Project%20/infra/outputs.tf)
+
+

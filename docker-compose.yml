@@ -21,7 +21,7 @@ services:
     restart: always
     ports:
       # Changed host port to 80 so users can access it via standard HTTP without typing :8080
-      - "8:80"
+      - "80:80"
     depends_on:
       - backend
 
