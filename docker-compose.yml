@@ -11,7 +11,7 @@ services:
       - "8000:8000"
     # This loads all the DB_* and JWT_SECRET variables from the .env file on the host
     env_file:
-      - /home/ec2-user/.env
+      - .env
 
   # 2. The Vite/React frontend application service
   frontend:
