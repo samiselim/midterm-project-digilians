@@ -1,5 +1,5 @@
 name: Deploy Pipeline
-run-name: Deploy [BE:${{ inputs.deploy_backend }} FE:${{ inputs.deploy_frontend }}] to ${{ inputs.environment }}
+run-name: Deploy to ${{ inputs.environment }}
 
 on:
   workflow_dispatch:
