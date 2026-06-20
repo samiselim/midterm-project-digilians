@@ -1,4 +1,5 @@
 name: Deploy Pipeline
+run-name: Deploy to ${{ inputs.environment }}
 
 on:
   workflow_dispatch:
@@ -10,63 +11,53 @@ on:
         options:
           - dev
           - prod
-      target:
-        description: 'Services to Deploy'
-        required: true
-        type: choice
-        options:
-          - backend
-          - frontend
-          - both
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   deploy:
-    name: Deploy Update (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
+    name: Execute Rolling Deploy
+    environment: ${{ inputs.environment }}
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      # 2. Configure AWS Credentials using OIDC
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: Checkout Docker Compose Only
+        uses: actions/checkout@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          sparse-checkout: |
+            docker-compose.yml
+          sparse-checkout-cone-mode: false
+      - name: aws login
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+      
+      # 1. Deploy via SSH
+      - name: Copy docker-compose to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_IP }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ec2-user/app"
 
-      # 3. Lookup the dynamic ASG Name in the target environment
-      - name: Retrieve Auto Scaling Group Name
-        id: asg-lookup
-        run: |
-          echo "Looking up Auto Scaling Group starting with '${{ github.event.inputs.environment }}-asg-'"
-          ASG_NAME=$(aws autoscaling describe-auto-scaling-groups \
-            --query "AutoScalingGroups[?starts_with(AutoScalingGroupName, '${{ github.event.inputs.environment }}-asg-')].AutoScalingGroupName" \
-            --output text)
-          
-          if [ -z "$ASG_NAME" ] || [ "$ASG_NAME" = "None" ]; then
-            echo "Error: No Auto Scaling Group found for environment ${{ github.event.inputs.environment }}"
-            exit 1
-          fi
-          
-          echo "Found ASG: $ASG_NAME"
-          echo "asg_name=$ASG_NAME" >> $GITHUB_OUTPUT
-
-      # 4. Trigger ASG Instance Refresh (Zero-downtime rolling update)
-      - name: Start ASG Instance Refresh
-        run: |
-          echo "Initiating rolling update for ASG: ${{ steps.asg-lookup.outputs.asg_name }}"
-          REFRESH_ID=$(aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${{ steps.asg-lookup.outputs.asg_name }}" \
-            --strategy Rolling \
-            --preferences '{"MinHealthyPercentage": 50}' \
-            --query "InstanceRefreshId" \
-            --output text)
-          
-          echo "Instance Refresh started successfully! Refresh ID: $REFRESH_ID"
-          echo "Deploy completed. AWS will roll out new instances executing user_data to pull updated ECR tags."
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        with:
+          host: ${{ secrets.EC2_IP }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION
+          script: |
+            cd /home/ec2-user/app
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+            docker compose pull
+            docker compose up -d --remove-orphans

@@ -1,55 +1,29 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: leavetrack_db
-    restart: always
-    environment:
-      POSTGRES_DB: LeaveTrackDB
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d LeaveTrackDB"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
+  # 1. The Express.js backend application service
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # Replace with your actual ECR or Docker Hub backend repository URL
+    image: 520557389723.dkr.ecr.eu-west-1.amazonaws.com/dev-backend:latest
     container_name: leavetrack_backend
     restart: always
     ports:
       - "8000:8000"
-    environment:
-      - PORT=8000
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=LeaveTrackDB
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - JWT_SECRET=supersecretjwtkeyforlocaldevelopment
-      - DB_SSL=false
-    depends_on:
-      db:
-        condition: service_healthy
+    # This loads all the DB_* and JWT_SECRET variables from the .env file on the host
+    env_file:
+      - .env
 
+  # 2. The Vite/React frontend application service
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    # Replace with your actual ECR or Docker Hub frontend repository URL
+    image: 520557389723.dkr.ecr.eu-west-1.amazonaws.com/dev-frontend:latest
     container_name: leavetrack_frontend
     restart: always
     ports:
-      - "8080:80"
+      # Changed host port to 80 so users can access it via standard HTTP without typing :8080
+      - "80:80"
     depends_on:
       - backend
 
-volumes:
-  postgres_data:
+# Notice: The "db" service and "volumes" sections are completely removed 
+# because AWS RDS manages your data storage externally!

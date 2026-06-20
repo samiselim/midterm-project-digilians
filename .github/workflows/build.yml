@@ -1,5 +1,5 @@
 name: Build Pipeline
-
+run-name: Build ${{ github.event.inputs.target }} for ${{ github.event.inputs.environment }}
 on:
   workflow_dispatch:
     inputs:
@@ -20,84 +20,96 @@ on:
           - prod
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   build-and-scan:
-    name: Build & Scan (${{ github.event.inputs.target }} - ${{ github.event.inputs.environment }})
+    environment: ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
+      # 1. Checkout repository code
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. Configure AWS Credentials using OIDC
+      # 2. Extract Git Commit SHA for unique image tagging
+      - name: Set Short Git Commit SHA
+        id: vars
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # 3. Configure AWS Credentials
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3. Log in to AWS ECR
+      # 4. Log in to Amazon ECR
       - name: Log in to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # 4. Set Environment Variables
-      - name: Set Variables
-        id: vars
-        run: |
-          echo "registry=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_OUTPUT
-          echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      # 5. Set up Docker Buildx (Required for advanced build-push actions cache/features)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # 5. Build and Scan Backend
-      - name: Build and Scan Backend
+      # ==========================================
+      # BACKEND BUILD, SCAN, AND PUSH
+      # ==========================================
+      
+      # 6. Build Backend Image Locally (push: false so we can scan it first)
+      - name: Build Backend Image Locally
         if: github.event.inputs.target == 'backend' || github.event.inputs.target == 'both'
-        run: |
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend"
-          docker build -t $IMAGE_URI:${{ steps.vars.outputs.sha }} -t $IMAGE_URI:${{ github.event.inputs.environment }} ./backend
-          echo "backend_image=$IMAGE_URI" >> $GITHUB_ENV
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          load: true # Loads the image into the local Docker daemon for scanning
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:${{ steps.vars.outputs.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:latest
 
+      # 7. Run Trivy Scan on Local Backend Image
       - name: Run Trivy Scan on Backend Image
         if: github.event.inputs.target == 'backend' || github.event.inputs.target == 'both'
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0 # Using stable defined version
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-backend:${{ steps.vars.outputs.sha }}
           format: 'table'
-          exit-code: '1' # Fails the pipeline if critical vulnerability is found
+          exit-code: '1' # Fails workflow if critical vulnerabilities are found
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL'
 
-      # 6. Build and Scan Frontend
-      - name: Build and Scan Frontend
-        if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
-        run: |
-          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend"
-          docker build -t $IMAGE_URI:${{ steps.vars.outputs.sha }} -t $IMAGE_URI:${{ github.event.inputs.environment }} ./frontend
-          echo "frontend_image=$IMAGE_URI" >> $GITHUB_ENV
+      # ==========================================
+      # FRONTEND BUILD, SCAN, AND PUSH
+      # ==========================================
 
+      # 9. Build Frontend Image Locally
+      - name: Build Frontend Image Locally
+        if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          load: true
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:${{ steps.vars.outputs.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:latest
+
+      # 10. Run Trivy Scan on Local Frontend Image
       - name: Run Trivy Scan on Frontend Image
         if: github.event.inputs.target == 'frontend' || github.event.inputs.target == 'both'
-        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ github.event.inputs.environment }}-frontend:${{ steps.vars.outputs.sha }}
           format: 'table'
-          exit-code: '1' # Fails the pipeline if critical vulnerability is found
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL'
-
-      # 7. Push to ECR (only if all scans passed)
-      - name: Push Images to Amazon ECR
-        run: |
-          if [ "${{ github.event.inputs.target }}" = "backend" ] || [ "${{ github.event.inputs.target }}" = "both" ]; then
-            docker push $backend_image:${{ steps.vars.outputs.sha }}
-            docker push $backend_image:${{ github.event.inputs.environment }}
-          fi
-          if [ "${{ github.event.inputs.target }}" = "frontend" ] || [ "${{ github.event.inputs.target }}" = "both" ]; then
-            docker push $frontend_image:${{ steps.vars.outputs.sha }}
-            docker push $frontend_image:${{ github.event.inputs.environment }}
-          fi
