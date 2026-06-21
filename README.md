@@ -10,7 +10,7 @@ This platform manages a full-stack Employee Leave Management application (**Reac
 
 The system routes traffic directly to the EC2 container host via an A-record in AWS Route 53. The EC2 instance runs both the frontend and backend services using Docker Compose, with secure database storage isolated in AWS RDS PostgreSQL:
 
-![AWS Cloud Architecture](architecture.png)
+
 
 ---
 
