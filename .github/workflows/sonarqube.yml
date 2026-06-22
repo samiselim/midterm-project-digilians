@@ -1,5 +1,5 @@
 name: SonarCloud Analysis
-
+run-name: SonarCloud Scan
 on:
   workflow_dispatch:
   pull_request:
